@@ -1,0 +1,131 @@
+version: '3.8'
+
+services:
+  # Base de datos PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: social_media_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: social_media_publisher
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis para Celery
+  redis:
+    image: redis:7-alpine
+    container_name: social_media_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # API FastAPI
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: social_media_api
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/social_media_publisher
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - ./temp_images:/app/temp_images
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Celery Worker
+  # Configuración con threads para tareas de red (I/O bound)
+  # --pool=threads: Usa threads en lugar de procesos (mejor para APIs)
+  # --concurrency=10: Procesa hasta 10 tareas simultáneamente
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: social_media_celery_worker
+    command: celery -A src.queue.celery_app worker --pool=threads --concurrency=10 --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/social_media_publisher
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - ./temp_images:/app/temp_images
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+  
+  # ALTERNATIVA: Escalar workers horizontalmente
+  # Descomentar para tener múltiples workers
+  # Ejecutar: docker-compose up -d --scale celery_worker_scaled=4
+  # celery_worker_scaled:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   command: celery -A src.queue.celery_app worker --pool=threads --concurrency=5 --loglevel=info
+  #   environment:
+  #     - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/social_media_publisher
+  #     - REDIS_URL=redis://redis:6379/0
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - .:/app
+  #     - ./temp_images:/app/temp_images
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
+  # Celery Flower (Monitor de tareas) - OPCIONAL
+  # Descomentar si instalaste flower: pip install flower
+  # celery_flower:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: social_media_celery_flower
+  #   command: celery -A src.queue.celery_app flower --port=5555
+  #   ports:
+  #     - "5555:5555"
+  #   environment:
+  #     - REDIS_URL=redis://redis:6379/0
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - .:/app
+  #   depends_on:
+  #     - redis
+  #     - celery_worker
+  #   restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
