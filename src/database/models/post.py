@@ -3,7 +3,7 @@ Modelo de Post - Contenido original a publicar
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum
+from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from src.database.database import Base
@@ -25,6 +25,7 @@ class Post(Base):
     __tablename__ = "posts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # nullable=True para migración
     title = Column(String(500), nullable=False)
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -35,6 +36,9 @@ class Post(Base):
         nullable=False
     )
 
+    # Relación con usuario
+    user = relationship("User", back_populates="posts")
+    
     # Relación con publicaciones
     publications = relationship(
         "Publication",
@@ -49,6 +53,7 @@ class Post(Base):
         """Convertir a diccionario para JSON"""
         return {
             "id": str(self.id),
+            "user_id": str(self.user_id) if self.user_id else None,
             "title": self.title,
             "content": self.content,
             "created_at": self.created_at.isoformat() if self.created_at else None,

@@ -11,7 +11,7 @@ class PostService:
     """Servicio para operaciones CRUD de Posts"""
 
     @staticmethod
-    def create_post(db: Session, title: str, content: str) -> Post:
+    def create_post(db: Session, title: str, content: str, user_id: Optional[UUID] = None) -> Post:
         """
         Crear un nuevo post
         
@@ -19,6 +19,7 @@ class PostService:
             db: Sesión de base de datos
             title: Título del post
             content: Contenido del post
+            user_id: ID del usuario propietario (opcional)
             
         Returns:
             Post creado
@@ -26,7 +27,8 @@ class PostService:
         post = Post(
             title=title,
             content=content,
-            status=PostStatus.DRAFT
+            status=PostStatus.DRAFT,
+            user_id=user_id
         )
         db.add(post)
         db.commit()
@@ -34,25 +36,45 @@ class PostService:
         return post
 
     @staticmethod
-    def get_post(db: Session, post_id: UUID) -> Optional[Post]:
+    def get_post(db: Session, post_id: UUID, user_id: Optional[UUID] = None) -> Optional[Post]:
         """
-        Obtener un post por ID
+        Obtener un post por ID, opcionalmente verificando que pertenezca al usuario
         
         Args:
             db: Sesión de base de datos
             post_id: ID del post
+            user_id: ID del usuario (opcional, si se proporciona verifica propiedad)
             
         Returns:
-            Post o None si no existe
+            Post o None si no existe o no pertenece al usuario
         """
-        return db.query(Post).filter(Post.id == post_id).first()
+        query = db.query(Post).filter(Post.id == post_id)
+        if user_id:
+            query = query.filter(Post.user_id == user_id)
+        return query.first()
+
+    @staticmethod
+    def get_post_by_user(db: Session, post_id: UUID, user_id: UUID) -> Optional[Post]:
+        """
+        Obtener un post por ID verificando que pertenezca al usuario
+        
+        Args:
+            db: Sesión de base de datos
+            post_id: ID del post
+            user_id: ID del usuario
+            
+        Returns:
+            Post o None si no existe o no pertenece al usuario
+        """
+        return db.query(Post).filter(Post.id == post_id, Post.user_id == user_id).first()
 
     @staticmethod
     def get_posts(
         db: Session,
         skip: int = 0,
         limit: int = 100,
-        status: Optional[PostStatus] = None
+        status: Optional[PostStatus] = None,
+        user_id: Optional[UUID] = None
     ) -> List[Post]:
         """
         Listar posts con paginación
@@ -62,11 +84,15 @@ class PostService:
             skip: Número de posts a omitir
             limit: Máximo número de posts a retornar
             status: Filtrar por estado (opcional)
+            user_id: Filtrar por usuario (opcional)
             
         Returns:
             Lista de posts
         """
         query = db.query(Post)
+        
+        if user_id:
+            query = query.filter(Post.user_id == user_id)
         
         if status:
             query = query.filter(Post.status == status)

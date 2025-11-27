@@ -1,10 +1,57 @@
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 export default function Home() {
   const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useAuth();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* Header con botones de auth */}
+      <div className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+          <h1 className="text-xl font-bold text-blue-600">
+            📱 Social Media Publisher
+          </h1>
+          <div className="flex items-center space-x-4">
+            {isAuthenticated ? (
+              <>
+                <span className="text-sm text-gray-600">
+                  Hola, <span className="font-medium">{user?.name}</span>
+                </span>
+                <button
+                  onClick={() => navigate('/dashboard')}
+                  className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                >
+                  Dashboard
+                </button>
+                <button
+                  onClick={logout}
+                  className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700"
+                >
+                  Cerrar Sesión
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => navigate('/login')}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600"
+                >
+                  Iniciar Sesión
+                </button>
+                <button
+                  onClick={() => navigate('/register')}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                >
+                  Registrarse
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Hero Section */}
       <div className="max-w-7xl mx-auto px-4 py-16">
         <div className="text-center mb-16">
@@ -24,7 +71,7 @@ export default function Home() {
         <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto mb-16">
           {/* Crear Publicación */}
           <div 
-            onClick={() => navigate('/create')}
+            onClick={() => navigate(isAuthenticated ? '/create' : '/login')}
             className="bg-white rounded-xl shadow-lg p-8 cursor-pointer transform transition-all hover:scale-105 hover:shadow-2xl"
           >
             <div className="text-5xl mb-4">✍️</div>
@@ -36,13 +83,13 @@ export default function Home() {
               Nuestra IA adaptará el mensaje para cada plataforma.
             </p>
             <button className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
-              Crear Nueva Publicación
+              {isAuthenticated ? 'Crear Nueva Publicación' : 'Iniciar Sesión para Crear'}
             </button>
           </div>
 
           {/* Dashboard */}
           <div 
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(isAuthenticated ? '/dashboard' : '/login')}
             className="bg-white rounded-xl shadow-lg p-8 cursor-pointer transform transition-all hover:scale-105 hover:shadow-2xl"
           >
             <div className="text-5xl mb-4">📊</div>
@@ -54,7 +101,7 @@ export default function Home() {
               y accede al historial completo.
             </p>
             <button className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
-              Ir al Dashboard
+              {isAuthenticated ? 'Ir al Dashboard' : 'Iniciar Sesión para Ver'}
             </button>
           </div>
         </div>

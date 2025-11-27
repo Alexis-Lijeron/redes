@@ -23,6 +23,7 @@ from src.services.whatsapp_service import (
 from src.services.content_publisher import ContentPublisher
 from src.services.intelligent_publisher import IntelligentPublisher
 from src.api.routes.posts_routes import router as posts_router, publications_router
+from src.api.routes.auth_routes import router as auth_router
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -53,6 +54,7 @@ app.add_middleware(
 )
 
 # Incluir routers
+app.include_router(auth_router)
 app.include_router(posts_router)
 app.include_router(publications_router)
 

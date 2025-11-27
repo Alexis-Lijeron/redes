@@ -10,6 +10,27 @@ export const apiClient = axios.create({
   },
 });
 
+// Interceptor para agregar token de autenticación
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Interceptor para manejar errores de autenticación
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Cliente separado para TikTok (otro backend)
 export const tiktokApiClient = axios.create({
   baseURL: TIKTOK_API_URL,
@@ -19,6 +40,20 @@ export const tiktokApiClient = axios.create({
 });
 
 // Tipos
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: User;
+}
+
 export interface Post {
   id: string;
   title: string;
@@ -164,6 +199,34 @@ export const postsApi = {
       },
       timeout: 120000, // 2 minutos para subida de video
     });
+    return response.data;
+  },
+};
+
+// API de Autenticación
+export const authApi = {
+  // Registro de usuario
+  register: async (name: string, email: string, password: string): Promise<AuthResponse> => {
+    const response = await apiClient.post('/api/auth/register', {
+      name,
+      email,
+      password,
+    });
+    return response.data;
+  },
+
+  // Login
+  login: async (email: string, password: string): Promise<AuthResponse> => {
+    const response = await apiClient.post('/api/auth/login', {
+      email,
+      password,
+    });
+    return response.data;
+  },
+
+  // Obtener usuario actual
+  getMe: async (): Promise<User> => {
+    const response = await apiClient.get('/api/auth/me');
     return response.data;
   },
 };

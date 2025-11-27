@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from src.database import get_db
 from src.api.controllers.posts_controller import PostsController
+from src.api.services.auth_service import get_current_user, get_current_user_optional
+from src.database.models import User
 
 
 router = APIRouter(prefix="/api/posts", tags=["Posts"])
@@ -45,12 +47,14 @@ class PublishRequest(BaseModel):
 @router.post("")
 def create_post(
     request: CreatePostRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     POST /api/posts - Crear nuevo post
     
     Crea un post en estado 'draft' que puede ser adaptado y publicado posteriormente.
+    Requiere autenticación.
     
     Args:
         request: Datos del post (title, content)
@@ -59,7 +63,7 @@ def create_post(
         Post creado con su ID
     """
     try:
-        post = controller.create_post(db, request.title, request.content)
+        post = controller.create_post(db, request.title, request.content, current_user.id)
         return {
             "success": True,
             "message": "Post creado exitosamente",
@@ -74,12 +78,14 @@ def list_posts(
     skip: int = 0,
     limit: int = 100,
     status: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
-    GET /api/posts - Listar posts
+    GET /api/posts - Listar posts del usuario actual
     
-    Lista todos los posts con paginación y filtro opcional por estado.
+    Lista todos los posts del usuario con paginación y filtro opcional por estado.
+    Requiere autenticación.
     
     Query params:
         - skip: Número de posts a omitir (default: 0)
@@ -87,10 +93,10 @@ def list_posts(
         - status: Filtrar por estado (draft, processing, published, failed)
         
     Returns:
-        Lista de posts
+        Lista de posts del usuario
     """
     try:
-        posts = controller.get_posts(db, skip, limit, status)
+        posts = controller.get_posts(db, skip, limit, status, current_user.id)
         return {
             "success": True,
             "count": len(posts),
@@ -103,12 +109,14 @@ def list_posts(
 @router.get("/{post_id}")
 def get_post_details(
     post_id: UUID,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     GET /api/posts/:id - Ver detalles de un post
     
     Obtiene los detalles completos de un post incluyendo todas sus publicaciones.
+    Requiere autenticación y que el post pertenezca al usuario.
     
     Args:
         post_id: UUID del post
@@ -117,7 +125,7 @@ def get_post_details(
         Detalles del post con sus publicaciones
     """
     try:
-        post = controller.get_post_details(db, post_id)
+        post = controller.get_post_details(db, post_id, current_user.id)
         if not post:
             raise HTTPException(status_code=404, detail="Post no encontrado")
         
@@ -135,13 +143,15 @@ def get_post_details(
 def adapt_content(
     post_id: UUID,
     request: AdaptContentRequest = AdaptContentRequest(),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     POST /api/posts/:id/adapt - Adaptar contenido con LLM
     
     Adapta el contenido del post para diferentes redes sociales usando IA.
     Crea registros de Publication en estado 'pending' para cada red.
+    Requiere autenticación y que el post pertenezca al usuario.
     
     Args:
         post_id: UUID del post
@@ -181,7 +191,8 @@ def adapt_content(
             db,
             post_id,
             request.networks,
-            request.preview_only
+            request.preview_only,
+            current_user.id
         )
         
         if "error" in result:
@@ -202,13 +213,15 @@ def adapt_content(
 def publish_to_networks(
     post_id: UUID,
     request: PublishRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     POST /api/posts/:id/publish - Publicar en redes sociales
     
     Publica el contenido adaptado en todas las redes sociales configuradas.
     Las publicaciones se procesan de forma asíncrona usando Celery.
+    Requiere autenticación y que el post pertenezca al usuario.
     
     Args:
         post_id: UUID del post
@@ -219,7 +232,7 @@ def publish_to_networks(
         Estado de las tareas de publicación encoladas
     """
     try:
-        result = controller.publish_to_networks(db, post_id, request.image_url)
+        result = controller.publish_to_networks(db, post_id, request.image_url, current_user.id)
         
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
@@ -238,13 +251,15 @@ def publish_to_networks(
 @router.get("/{post_id}/status")
 def get_publication_status(
     post_id: UUID,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     GET /api/posts/:id/status - Ver estado de publicaciones
     
     Obtiene el estado actual de todas las publicaciones de un post.
     Útil para verificar el progreso después de publicar.
+    Requiere autenticación y que el post pertenezca al usuario.
     
     Args:
         post_id: UUID del post
@@ -253,7 +268,7 @@ def get_publication_status(
         Estado detallado de todas las publicaciones
     """
     try:
-        status = controller.get_publication_status(db, post_id)
+        status = controller.get_publication_status(db, post_id, current_user.id)
         
         if "error" in status:
             raise HTTPException(status_code=404, detail=status["error"])

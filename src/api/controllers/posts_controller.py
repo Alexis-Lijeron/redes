@@ -2,7 +2,7 @@
 Controlador de Posts - Lógica de negocio
 """
 import os
-from typing import List, Dict
+from typing import List, Dict, Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
 from src.database.models import Post, Publication, PostStatus, SocialNetwork, PublicationStatus
@@ -26,7 +26,7 @@ class PostsController:
         else:
             self.adaptation_service = None
 
-    def create_post(self, db: Session, title: str, content: str) -> Dict:
+    def create_post(self, db: Session, title: str, content: str, user_id: Optional[UUID] = None) -> Dict:
         """
         Crear un nuevo post
         
@@ -34,11 +34,12 @@ class PostsController:
             db: Sesión de base de datos
             title: Título del post
             content: Contenido del post
+            user_id: ID del usuario propietario (opcional)
             
         Returns:
             Diccionario con el post creado
         """
-        post = self.post_service.create_post(db, title, content)
+        post = self.post_service.create_post(db, title, content, user_id)
         return post.to_dict()
 
     def get_posts(
@@ -46,7 +47,8 @@ class PostsController:
         db: Session,
         skip: int = 0,
         limit: int = 100,
-        status: str = None
+        status: str = None,
+        user_id: Optional[UUID] = None
     ) -> List[Dict]:
         """
         Listar posts con paginación
@@ -56,26 +58,28 @@ class PostsController:
             skip: Número de posts a omitir
             limit: Máximo número de posts a retornar
             status: Filtrar por estado (opcional)
+            user_id: Filtrar por usuario (opcional)
             
         Returns:
             Lista de posts
         """
         status_enum = PostStatus(status) if status else None
-        posts = self.post_service.get_posts(db, skip, limit, status_enum)
+        posts = self.post_service.get_posts(db, skip, limit, status_enum, user_id)
         return [post.to_dict() for post in posts]
 
-    def get_post_details(self, db: Session, post_id: UUID) -> Dict:
+    def get_post_details(self, db: Session, post_id: UUID, user_id: Optional[UUID] = None) -> Dict:
         """
         Obtener detalles de un post con sus publicaciones
         
         Args:
             db: Sesión de base de datos
             post_id: ID del post
+            user_id: ID del usuario (para verificar propiedad)
             
         Returns:
             Diccionario con post y publicaciones
         """
-        post = self.post_service.get_post(db, post_id)
+        post = self.post_service.get_post(db, post_id, user_id)
         if not post:
             return None
         
@@ -91,7 +95,8 @@ class PostsController:
         db: Session,
         post_id: UUID,
         networks: List[str],
-        preview_only: bool = False
+        preview_only: bool = False,
+        user_id: Optional[UUID] = None
     ) -> Dict:
         """
         Adaptar contenido de un post para diferentes redes sociales
@@ -101,12 +106,13 @@ class PostsController:
             post_id: ID del post
             networks: Lista de redes sociales
             preview_only: Si es True, solo muestra preview sin guardar
+            user_id: ID del usuario (para verificar propiedad)
             
         Returns:
             Diccionario con adaptaciones
         """
         # Obtener post
-        post = self.post_service.get_post(db, post_id)
+        post = self.post_service.get_post(db, post_id, user_id)
         if not post:
             return {"error": "Post no encontrado"}
         
@@ -167,7 +173,8 @@ class PostsController:
         self,
         db: Session,
         post_id: UUID,
-        image_url: str = None
+        image_url: str = None,
+        user_id: Optional[UUID] = None
     ) -> Dict:
         """
         Publicar contenido adaptado en las redes sociales
@@ -176,12 +183,13 @@ class PostsController:
             db: Sesión de base de datos
             post_id: ID del post
             image_url: URL de imagen (opcional)
+            user_id: ID del usuario (para verificar propiedad)
             
         Returns:
             Diccionario con resultados de publicación
         """
         # Obtener publicaciones pendientes
-        post = self.post_service.get_post(db, post_id)
+        post = self.post_service.get_post(db, post_id, user_id)
         if not post:
             return {"error": "Post no encontrado"}
         
@@ -246,18 +254,19 @@ class PostsController:
             "results": results
         }
 
-    def get_publication_status(self, db: Session, post_id: UUID) -> Dict:
+    def get_publication_status(self, db: Session, post_id: UUID, user_id: Optional[UUID] = None) -> Dict:
         """
         Obtener estado de publicaciones de un post
         
         Args:
             db: Sesión de base de datos
             post_id: ID del post
+            user_id: ID del usuario (para verificar propiedad)
             
         Returns:
             Diccionario con estado de publicaciones
         """
-        post = self.post_service.get_post(db, post_id)
+        post = self.post_service.get_post(db, post_id, user_id)
         if not post:
             return {"error": "Post no encontrado"}
         
